@@ -1,5 +1,6 @@
 FROM php:8.2-cli
-
+# Instalar extensão PHP para MySQL
+RUN docker-php-ext-install pdo_mysql
 # Instalar dependências do sistema
 RUN apt-get update && apt-get install -y \
     unzip \
