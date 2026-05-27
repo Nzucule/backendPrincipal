@@ -12,7 +12,7 @@ class AuthController extends Controller
 {
 
     // 📌 Registrar novo usuário
-    public function registrar(Request $request)
+    public function register(Request $request)
     {
         $request->validate([
             'name' => 'required',
