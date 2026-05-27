@@ -6,6 +6,9 @@ RUN apt-get update && apt-get install -y \
     git \
     curl
 
+# Instalar extensão PHP para MySQL
+RUN docker-php-ext-install pdo_mysql
+
 # Instalar Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
