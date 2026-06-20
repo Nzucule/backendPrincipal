@@ -110,16 +110,44 @@ class AgendamentoController extends Controller
                 $emailAdmin = 'abiliodanieln@gmail.com';
 
                 // 1. Envia para o Cliente (Usa o e-mail dinâmico guardado)
+                \Log::info('[Email] Tentando enviar email para: ' . $agendamento->email_cliente, [
+                    'agendamento_id' => $agendamento->id,
+                    'nome_cliente'   => $agendamento->nome_cliente,
+                    'servico'        => $servico->nome,
+                    'mail_driver'    => config('mail.default'),
+                    'mail_host'      => config('mail.mailers.smtp.host'),
+                    'mail_from'      => config('mail.from.address'),
+                ]);
+
                 Mail::to($agendamento->email_cliente)->send(new AgendamentoCriadoMail($agendamento));
 
+                \Log::info('[Email] Email enviado com sucesso para: ' . $agendamento->email_cliente, [
+                    'agendamento_id' => $agendamento->id,
+                ]);
+
                 // 2. Envia Notificação para o Admin
+                \Log::info('[Email] Tentando enviar email para: ' . $emailAdmin, [
+                    'tipo' => 'notificacao_admin',
+                    'agendamento_id' => $agendamento->id,
+                ]);
+
                 Mail::raw("Um novo agendamento foi realizado no App!\n\nCliente: {$agendamento->nome_cliente}\nServiço: {$servico->nome}\nData: {$agendamento->data_agendamento}", function ($message) use ($emailAdmin, $agendamento, $servico) {
                     $message->to($emailAdmin)
                             ->subject('Novo Agendamento Recebido - Pest Protect');
                 });
 
+                \Log::info('[Email] Email enviado com sucesso para: ' . $emailAdmin, [
+                    'tipo' => 'notificacao_admin',
+                    'agendamento_id' => $agendamento->id,
+                ]);
+
             } catch (\Exception $e) {
-                \Log::error('Erro ao enviar e-mails de criação: ' . $e->getMessage());
+                \Log::error('[Email] Erro ao enviar email: ' . $e->getMessage(), [
+                    'agendamento_id'  => $agendamento->id ?? null,
+                    'email_destino'   => $agendamento->email_cliente ?? null,
+                    'exception_class' => get_class($e),
+                    'trace'           => $e->getTraceAsString(),
+                ]);
             }
 
             // 3. Retornar a resposta correta para o Frontend
