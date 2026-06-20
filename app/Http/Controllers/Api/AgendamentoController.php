@@ -12,119 +12,149 @@ use Illuminate\Support\Facades\DB;
 use App\Notifications\AgendamentoConfirmado;
 use App\Notifications\AgendamentoCancelado;
 use App\Notifications\VisitaTecnicaAgendada;
-
+use Illuminate\Support\Facades\Mail;
+use App\Mail\AgendamentoCriadoMail;
+use App\Mail\AgendamentoConfirmadoMail;
+use App\Mail\AgendamentoCanceladoMail;
+use Carbon\Carbon;
 
 class AgendamentoController extends Controller
 {
     // Cliente: Criar novo agendamento
-    // app/Http/Controllers/Api/AgendamentoController.php
-
-public function store(Request $request)
-{
-    $validator = Validator::make($request->all(), [
-        'servico_id' => 'required|exists:servicos,id',
-        'endereco_completo' => 'required|string',
-        'bairro' => 'required|string',
-        'cidade' => 'required|string',
-        'zona' => 'required|in:cidade,fora_cidade',
-        'data_agendamento' => 'required|date|after_or_equal:today',
-        'quantidade_compartimentos' => 'required|integer|min:1',
-        'observacoes' => 'nullable|string'
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json(['errors' => $validator->errors()], 422);
-    }
-
-    DB::beginTransaction();
-
-    try {
-        $user = $request->user();
-        $servico = Servico::findOrFail($request->servico_id);
-
-        // 🔥 CORREÇÃO: Tratamento Térmico DEVE ser aceito
-        if ($servico->categoria === 'termico') {
-            // Criar agendamento SEM preços (serão definidos após visita)
-            $agendamento = Agendamento::create([
-                'user_id' => $user->id,
-                'servico_id' => $servico->id,
-                'nome_cliente' => $user->name,
-                'email_cliente' => $user->email,
-                'telefone_cliente' => $user->telefone,
-                'endereco_completo' => $request->endereco_completo,
-                'bairro' => $request->bairro,
-                'cidade' => $request->cidade,
-                'zona' => $request->zona,
-                'data_agendamento' => $request->data_agendamento,
-                'quantidade_compartimentos' => 1,
-                'preco_unitario' => 0,
-                'taxa_logistica' => 0,
-                'subtotal' => 0,
-                'total' => 0,
-                'status' => 'pendente', // STATUS PENDENTE
-                'observacoes' => $request->observacoes . ' [AGUARDANDO VISITA TÉCNICA]'
-            ]);
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Solicitação de visita técnica recebida! Entraremos em contato em até 24h.',
-                'data' => [
-                    'agendamento' => $agendamento
-                ]
-            ], 201);
-        }
-
-        // Para fumigação e desratização (cálculo normal)
-        $precos = $this->calcularPrecos($servico->categoria, $request->zona, $request->quantidade_compartimentos);
-
-        $agendamento = Agendamento::create([
-            'user_id' => $user->id,
-            'servico_id' => $servico->id,
-            'nome_cliente' => $user->name,
-            'email_cliente' => $user->email,
-            'telefone_cliente' => $user->telefone,
-            'endereco_completo' => $request->endereco_completo,
-            'bairro' => $request->bairro,
-            'cidade' => $request->cidade,
-            'zona' => $request->zona,
-            'data_agendamento' => $request->data_agendamento,
-            'quantidade_compartimentos' => $request->quantidade_compartimentos,
-            'preco_unitario' => $precos['unitario'],
-            'taxa_logistica' => $precos['logistica'],
-            'subtotal' => $precos['subtotal'],
-            'total' => $precos['total'],
-            'status' => 'pendente',
-            'observacoes' => $request->observacoes
+    public function store(Request $request)
+    {
+        // 1. Validação condicional: os campos do cliente só são obrigatórios se for anónimo
+        $validator = Validator::make($request->all(), [
+            'servico_id' => 'required|exists:servicos,id',
+            'endereco_completo' => 'required|string',
+            'bairro' => 'required|string',
+            'cidade' => 'required|string',
+            'zona' => 'required|in:cidade,fora_cidade',
+            'data_agendamento' => 'required|date|after_or_equal:today',
+            'quantidade_compartimentos' => 'required|integer|min:1',
+            'observacoes' => 'nullable|string',
+            
+            // Novos campos validados apenas se o utilizador não estiver autenticado
+            'nome_cliente' => 'required_if:anonimo,true|nullable|string|max:255',
+            'email_cliente' => 'required_if:anonimo,true|nullable|email|max:255',
+            'telefone_cliente' => 'required_if:anonimo,true|nullable|string|max:20',
+            'anonimo' => 'nullable|boolean'
         ]);
 
-        DB::commit();
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Agendamento realizado com sucesso!',
-            'data' => [
-                'agendamento' => $agendamento,
-                'fatura' => [
-                    'servico' => $servico->nome,
-                    'quantidade' => $request->quantidade_compartimentos,
+        DB::beginTransaction();
+
+        try {
+            $user = $request->user(); // Será null se o utilizador for anónimo
+            $servico = Servico::findOrFail($request->servico_id);
+
+            // 2. Definição dinâmica dos dados do cliente (Fallback)
+            $userId          = $user ? $user->id : null; // Requer que user_id seja nullable na DB
+            $nomeCliente     = $user ? $user->name : $request->nome_cliente;
+            $emailCliente    = $user ? $user->email : $request->email_cliente;
+            $telefoneCliente = $user ? $user->telefone : $request->telefone_cliente;
+
+            // 3. Criar o agendamento baseado na categoria
+            if ($servico->categoria === 'termico') {
+                $agendamento = Agendamento::create([
+                    'user_id' => $userId,
+                    'servico_id' => $servico->id,
+                    'nome_cliente' => $nomeCliente,
+                    'email_cliente' => $emailCliente,
+                    'telefone_cliente' => $telefoneCliente,
+                    'endereco_completo' => $request->endereco_completo,
+                    'bairro' => $request->bairro,
+                    'cidade' => $request->cidade,
+                    'zona' => $request->zona,
+                    'data_agendamento' => $request->data_agendamento,
+                    'quantidade_compartimentos' => 1,
+                    'preco_unitario' => 0,
+                    'taxa_logistica' => 0,
+                    'subtotal' => 0,
+                    'total' => 0,
+                    'status' => 'pendente', 
+                    'observacoes' => $request->observacoes . ' [AGUARDANDO VISITA TÉCNICA]'
+                ]);
+            } else {
+                // Para fumigação e desratização (cálculo normal)
+                $precos = $this->calcularPrecos($servico->categoria, $request->zona, $request->quantidade_compartimentos);
+
+                $agendamento = Agendamento::create([
+                    'user_id' => $userId,
+                    'servico_id' => $servico->id,
+                    'nome_cliente' => $nomeCliente,
+                    'email_cliente' => $emailCliente,
+                    'telefone_cliente' => $telefoneCliente,
+                    'endereco_completo' => $request->endereco_completo,
+                    'bairro' => $request->bairro,
+                    'cidade' => $request->cidade,
+                    'zona' => $request->zona,
+                    'data_agendamento' => $request->data_agendamento,
+                    'quantidade_compartimentos' => $request->quantidade_compartimentos,
                     'preco_unitario' => $precos['unitario'],
                     'taxa_logistica' => $precos['logistica'],
                     'subtotal' => $precos['subtotal'],
-                    'total' => $precos['total']
-                ]
-            ]
-        ], 201);
+                    'total' => $precos['total'],
+                    'status' => 'pendente',
+                    'observacoes' => $request->observacoes
+                ]);
+            }
 
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return response()->json([
-            'success' => false,
-            'message' => 'Erro ao criar agendamento: ' . $e->getMessage()
-        ], 500);
+            DB::commit();
+
+            // 🔥 LOGICA DE ENVIO DE E-MAILS
+            try {
+                $emailAdmin = 'abiliodanieln@gmail.com';
+
+                // 1. Envia para o Cliente (Usa o e-mail dinâmico guardado)
+                Mail::to($agendamento->email_cliente)->send(new AgendamentoCriadoMail($agendamento));
+
+                // 2. Envia Notificação para o Admin
+                Mail::raw("Um novo agendamento foi realizado no App!\n\nCliente: {$agendamento->nome_cliente}\nServiço: {$servico->nome}\nData: {$agendamento->data_agendamento}", function ($message) use ($emailAdmin, $agendamento, $servico) {
+                    $message->to($emailAdmin)
+                            ->subject('Novo Agendamento Recebido - Pest Protect');
+                });
+
+            } catch (\Exception $e) {
+                \Log::error('Erro ao enviar e-mails de criação: ' . $e->getMessage());
+            }
+
+            // 3. Retornar a resposta correta para o Frontend
+            if ($servico->categoria === 'termico') {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Solicitação de visita técnica recebida! Entraremos em contato em até 24h.',
+                    'data' => ['agendamento' => $agendamento]
+                ], 201);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Agendamento realizado com sucesso!',
+                'data' => [
+                    'agendamento' => $agendamento,
+                    'fatura' => [
+                        'servico' => $servico->nome,
+                        'quantidade' => $request->quantidade_compartimentos,
+                        'preco_unitario' => $precos['unitario'],
+                        'taxa_logistica' => $precos['logistica'],
+                        'subtotal' => $precos['subtotal'],
+                        'total' => $precos['total']
+                    ]
+                ]
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao criar agendamento: ' . $e->getMessage()
+            ], 500);
+        }
     }
-}
 
     private function calcularPrecos($categoria, $zona, $quantidade)
     {
@@ -189,6 +219,7 @@ public function store(Request $request)
             ], 500);
         }
     }
+
     // Cliente: Cancelar agendamento
     public function cancelar(Request $request, $id)
     {
@@ -204,7 +235,6 @@ public function store(Request $request)
                 ], 404);
             }
 
-            // Verificar se pode cancelar
             if (!in_array($agendamento->status, ['pendente', 'confirmado'])) {
                 return response()->json([
                     'success' => false,
@@ -228,7 +258,6 @@ public function store(Request $request)
         }
     }
 
-
     // Admin: Listar todos agendamentos
     public function index(Request $request)
     {
@@ -240,65 +269,61 @@ public function store(Request $request)
     }
 
     // Admin: Atualizar status do agendamento
-    // Admin: Atualizar status do agendamento
-public function update(Request $request, $id)
-{
-    $validator = Validator::make($request->all(), [
-        'status' => 'required|in:pendente,confirmado,concluido,cancelado',
-        'hora_agendamento' => 'nullable|date_format:H:i',
-        'mensagem' => 'nullable|string',
-        'data_visita' => 'nullable|date',
-        'hora_visita' => 'nullable|date_format:H:i'
-    ]);
+    public function update(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'status' => 'required|in:pendente,confirmado,concluido,cancelado',
+            'hora_agendamento' => 'nullable|date_format:H:i',
+            'mensagem' => 'nullable|string',
+            'data_visita' => 'nullable|date',
+            'hora_visita' => 'nullable|date_format:H:i'
+        ]);
 
-    if ($validator->fails()) {
-        return response()->json(['errors' => $validator->errors()], 422);
-    }
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
 
-    $agendamento = Agendamento::with('servico', 'user')->findOrFail($id);
-    
-    $data = ['status' => $request->status];
-    $oldStatus = $agendamento->status;
-    
-    if ($request->has('hora_agendamento')) {
-        $data['hora_agendamento'] = $request->hora_agendamento;
-    }
+        $agendamento = Agendamento::with('servico', 'user')->findOrFail($id);
+        
+        $data = ['status' => $request->status];
+        $oldStatus = $agendamento->status;
+        
+        if ($request->has('hora_agendamento')) {
+            $data['hora_agendamento'] = $request->hora_agendamento;
+        }
 
-    $agendamento->update($data);
+        $agendamento->update($data);
 
-    // Enviar notificações baseado na mudança de status
-    try {
-        if ($oldStatus !== $request->status) {
-            $user = $agendamento->user;
-            
-            switch ($request->status) {
-                case 'confirmado':
-                    $user->notify(new AgendamentoConfirmado($agendamento, $request->mensagem));
-                    break;
-                    
-                case 'cancelado':
-                    $user->notify(new AgendamentoCancelado($agendamento, $request->mensagem));
-                    break;
+        try {
+            if ($oldStatus !== $request->status) {
+                switch ($request->status) {
+                    case 'confirmado':
+                        Mail::to($agendamento->email_cliente)->queue(new AgendamentoConfirmadoMail($agendamento));
+                        break;
+                        
+                    case 'cancelado':
+                        Mail::to($agendamento->email_cliente)->queue(new AgendamentoCanceladoMail($agendamento));
+                        break;
+                }
             }
+
+            // Apenas envia a notificação via base de dados se o agendamento possuir um user associado (não anónimo)
+            if ($agendamento->servico->categoria === 'termico' && $request->has('data_visita') && $agendamento->user) {
+                $agendamento->user->notify(new VisitaTecnicaAgendada(
+                    $agendamento, 
+                    new \Carbon\Carbon($request->data_visita),
+                    $request->hora_visita
+                ));
+            }
+        } catch (\Exception $e) {
+            \Log::error('Erro ao enviar notificação: ' . $e->getMessage());
         }
 
-        // Se for tratamento térmico e foi definida data de visita
-        if ($agendamento->servico->categoria === 'termico' && $request->has('data_visita')) {
-            $agendamento->user->notify(new VisitaTecnicaAgendada(
-                $agendamento, 
-                new \Carbon\Carbon($request->data_visita),
-                $request->hora_visita
-            ));
-        }
-    } catch (\Exception $e) {
-        \Log::error('Erro ao enviar notificação: ' . $e->getMessage());
+        return response()->json([
+            'message' => 'Agendamento updated com sucesso',
+            'agendamento' => $agendamento
+        ]);
     }
-
-    return response()->json([
-        'message' => 'Agendamento atualizado com sucesso',
-        'agendamento' => $agendamento
-    ]);
-}
 
     // Admin: Deletar agendamento
     public function destroy($id)
@@ -308,7 +333,4 @@ public function update(Request $request, $id)
 
         return response()->json(['message' => 'Agendamento removido com sucesso']);
     }
-
-
-    
 }

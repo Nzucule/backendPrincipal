@@ -8,24 +8,29 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AgendamentoController;
 
 // ========== ROTAS PÚBLICAS ==========
-Route::post('/register', [AuthController::class, 'register']);
+
+Route::post('/register', [AuthController::class, 'registrar']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/servicos', [ServicoController::class, 'index']);
 Route::get('/servicos/{id}', [ServicoController::class, 'show']);
 
-// ========== ROTAS PROTEGIDAS (QUALQUER USUÁRIO AUTENTICADO) ==========
-Route::middleware(['auth:sanctum','cliente'])->group(function () {
+// 🔥 NOVIDADE: Criar agendamento agora é público (Aceita Utilizador Logado ou Anónimo)
+Route::post('/agendamentos', [AgendamentoController::class, 'store']);
+
+
+// ========== ROTAS PROTEGIDAS (APENAS CLIENTES AUTENTICADOS) ==========
+Route::middleware(['auth:sanctum', 'cliente'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/perfil', [UserController::class, 'getPerfil']);
     Route::put('/perfil', [UserController::class, 'updatePerfil']);
     
-    // Agendamentos do cliente
-    Route::post('/agendamentos', [AgendamentoController::class, 'store']);
+    // Agendamentos privados do cliente logado
     Route::get('/meus-agendamentos', [AgendamentoController::class, 'meus']);
-    Route::get('/historico', [AgendamentoController::class, 'historico']); // NOVA ROTA
-    Route::post('/cancelar-agendamento/{id}', [AgendamentoController::class, 'cancelar']); // NOVA ROTA
-    Route::get('/agendamentos/{id}', [AgendamentoController::class, 'show']);
+    Route::get('/historico', [AgendamentoController::class, 'historico']);
+    Route::post('/cancelar-agendamento/{id}', [AgendamentoController::class, 'cancelar']);
+    Route::get('/agendamentos/{id}', [AgendamentoController::class, 'show']); 
 });
+
 
 // ========== ROTAS APENAS PARA ADMIN ==========
 Route::middleware(['auth:sanctum', 'admin'])->group(function () {

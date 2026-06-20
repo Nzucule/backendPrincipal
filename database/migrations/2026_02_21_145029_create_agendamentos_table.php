@@ -11,7 +11,10 @@ return new class extends Migration
     {
         Schema::create('agendamentos', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+           $table->foreignId('user_id')
+      ->nullable()
+      ->constrained()
+      ->nullOnDelete();
             $table->foreignId('servico_id')->constrained()->onDelete('cascade');
             $table->string('nome_cliente');
             $table->string('email_cliente');
