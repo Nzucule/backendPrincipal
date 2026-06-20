@@ -29,6 +29,12 @@ class AgendamentoCriadoMail extends Mailable
 
     public function content(): Content
     {
+        \Log::info('[AgendamentoCriadoMail] Mailable sendo construída', [
+            'agendamento_id' => $this->agendamento->id,
+            'email_destino'  => $this->agendamento->email_cliente,
+            'nome_cliente'   => $this->agendamento->nome_cliente,
+        ]);
+
         return new Content(
             view: 'emails.agendamento-criado', 
         );
