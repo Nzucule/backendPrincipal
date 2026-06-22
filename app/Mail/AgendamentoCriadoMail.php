@@ -23,7 +23,7 @@ class AgendamentoCriadoMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Novo Agendamento Criado - Pest Protect',
+            subject: 'Novo Agendamento- APP Pest Protect',
         );
     }
 

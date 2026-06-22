@@ -107,16 +107,30 @@ class AgendamentoController extends Controller
 
             // 🔥 LOGICA DE ENVIO DE E-MAILS
             try {
-                $emailAdmin = 'abiliodanieln@gmail.com';
+                $emailAdmin = 'castrofranciscozavale@gmail.com';
 
                 // 1. Envia para o Cliente (Usa o e-mail dinâmico guardado)
                 Mail::to($agendamento->email_cliente)->send(new AgendamentoCriadoMail($agendamento));
 
                 // 2. Envia Notificação para o Admin
-                Mail::raw("Um novo agendamento foi realizado no App!\n\nCliente: {$agendamento->nome_cliente}\nServiço: {$servico->nome}\nData: {$agendamento->data_agendamento}", function ($message) use ($emailAdmin, $agendamento, $servico) {
-                    $message->to($emailAdmin)
-                            ->subject('Novo Agendamento Recebido - Pest Protect');
-                });
+                Mail::raw(
+"📌 NOVO AGENDAMENTO REALIZADO
+
+👤 Cliente: {$agendamento->nome_cliente}
+📧 Email: {$agendamento->email_cliente}
+📞 Telefone: {$agendamento->telefone_cliente}
+
+🛠 Serviço: {$servico->nome}
+📅 Data do agendamento: {$agendamento->data_agendamento}
+
+📍 Endereço: {$agendamento->endereco_completo}, {$agendamento->bairro}, {$agendamento->cidade}
+
+⚠️ Status: {$agendamento->status}
+",
+function ($message) use ($emailAdmin) {
+    $message->to($emailAdmin)
+            ->subject('Novo Agendamento - APP Pest Protect');
+});
 
             } catch (\Exception $e) {
                 \Log::error('Erro ao enviar e-mails de criação: ' . $e->getMessage());
