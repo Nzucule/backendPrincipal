@@ -1,34 +1,51 @@
-<h2>Agendamento Recebido</h2>
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #1a237e; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background: #f5f5f5; }
+        .info { margin: 10px 0; }
+        .label { font-weight: bold; color: #333; }
+        .footer { text-align: center; padding: 10px; font-size: 12px; color: #777; }
+        .card { background: white; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .status-pendente { color: #f57c00; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>✅ Agendamento Realizado com Sucesso!</h2>
+        </div>
+        <div class="content">
+            <p>Olá <strong>{{ $agendamento->nome_cliente }}</strong>,</p>
+            
+            <p>Recebemos o seu agendamento para o serviço de <strong>{{ $agendamento->servico->nome }}</strong>.</p>
+            
+            <div class="card">
+                <h3>📋 Detalhes do Agendamento</h3>
+                <div class="info"><span class="label">🛠 Serviço:</span> {{ $agendamento->servico->nome }}</div>
+                <div class="info"><span class="label">📅 Data:</span> {{ \Carbon\Carbon::parse($agendamento->data_agendamento)->format('d/m/Y') }}</div>
+                <div class="info"><span class="label">📍 Endereço:</span> {{ $agendamento->endereco_completo }}</div>
+                <div class="info"><span class="label">📦 Compartimentos:</span> {{ $agendamento->quantidade_compartimentos }}</div>
+                <div class="info"><span class="label">💰 Total:</span> {{ number_format($agendamento->total, 2, ',', '.') }} MZN</div>
+                <div class="info"><span class="label">⚠️ Status:</span> <span class="status-pendente">{{ ucfirst($agendamento->status) }}</span></div>
+            </div>
 
-<p>Prezado(a) {{ $agendamento->nome_cliente }},</p>
+            @if($agendamento->servico->categoria === 'termico')
+                <p><strong>🔔 Próximos Passos:</strong> Entraremos em contato em até 24h para agendar a visita técnica.</p>
+            @else
+                <p><strong>🔔 Próximos Passos:</strong> Aguarde a confirmação do seu agendamento.</p>
+            @endif
 
-<p>Confirmamos a receção do seu pedido de agendamento em nosso sistema.</p>
-
-<hr>
-
-<p><b>Data solicitada:</b> {{ \Carbon\Carbon::parse($agendamento->data_agendamento)->format('d/m/Y') }}</p>
-
-<p><b>Próximo passo:</b> O seu agendamento encontra-se em análise. Em breve, enviará uma notificação de confirmação para o seu e-mail ou via WhatsApp através do canal oficial da <b>APP Pest Protect</b>.</p>
-
-<hr>
-
-<!-- Bloco de Diferencial Institucional -->
-<div style="background-color: #fcfcfc; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0; border-radius: 4px; font-family: sans-serif;">
-    <h3 style="margin-top: 0; color: #111; font-size: 16px;">Porquê escolher a Pest Protect?</h3>
-    <p style="margin-bottom: 8px; font-size: 14px; color: #333;"><b>Excelência em Proteção:</b> Garantimos ambientes seguros e livres de pragas através de equipas devidamente certificadas e metodologias avançadas.</p>
-    <p style="margin-bottom: 8px; font-size: 14px; color: #333;"><b>Responsabilidade Ambiental:</b> Utilizamos produtos de alta eficácia que cumprem rigorosos padrões de segurança para a saúde humana e preservação do meio ambiente.</p>
-    <p style="font-size: 14px; color: #333;"><b>Gestão Integrada:</b> Através da nossa plataforma Pest Protect, disponibilizamos o controlo e acompanhamento em tempo real de todos os seus serviços.</p>
-</div>
-
-<hr>
-
-<p>Caso necessite de esclarecimentos adicionais ou assistência imediata, por favor, contacte os nossos serviços de apoio:</p>
-<ul style="list-style-type: none; padding-left: 0;">
-    <li style="margin-bottom: 5px;"><b>Telefone:</b> +258 82 299 6958</li>
-    <li><b>Telefone:</b> +258 87 383 0003</li>
-</ul>
-
-<p>Agradecemos a sua preferência e a confiança depositada nos nossos serviços.</p>
-
-<p>Com os melhores cumprimentos,<br>
-<b>Equipa APP Pest Protect</b></p>
+            <p>Atenciosamente,<br>
+            <strong>Equipe APP Pest Protect</strong></p>
+        </div>
+        <div class="footer">
+            <p>Este e-mail foi enviado automaticamente. Por favor, não responda.</p>
+            <p>© {{ date('Y') }} APP Pest Protect - Todos os direitos reservados.</p>
+        </div>
+    </div>
+</body>
+</html>

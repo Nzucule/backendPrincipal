@@ -2,8 +2,9 @@
 
 namespace App\Mail;
 
+use App\Models\Agendamento;
+use App\Services\BrevoEmailService;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -13,39 +14,45 @@ class AgendamentoConfirmadoMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    /**
-     * Create a new message instance.
-     */
-    public function __construct()
+    public $agendamento;
+
+    public function __construct(Agendamento $agendamento)
     {
-        //
+        $this->agendamento = $agendamento;
     }
 
-    /**
-     * Get the message envelope.
-     */
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Agendamento Confirmado',
+            subject: 'Agendamento Confirmado - APP Pest Protect',
         );
     }
 
-    /**
-     * Get the message content definition.
-     */
     public function content(): Content
     {
         return new Content(
-            view: 'view.name',
+            view: 'emails.agendamento-confirmado',
         );
     }
 
     /**
-     * Get the attachments for the message.
-     *
-     * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+     * Método para enviar via Brevo API
      */
+    public function sendViaBrevo(BrevoEmailService $brevoService)
+    {
+        $htmlContent = view('emails.agendamento-confirmado', [
+            'agendamento' => $this->agendamento
+        ])->render();
+
+        $to = $this->agendamento->email_cliente;
+
+        return $brevoService->sendEmail(
+            $to,
+            'Agendamento Confirmado - APP Pest Protect',
+            $htmlContent
+        );
+    }
+
     public function attachments(): array
     {
         return [];

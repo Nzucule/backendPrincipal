@@ -1,23 +1,37 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Http;
+use App\Services\BrevoEmailService;
 
-Route::get('/teste-brevo-api', function () {
+Route::get('/teste-brevo-api', function (BrevoEmailService $brevoService) {
+    
+    // Teste simples
+    $result = $brevoService->sendEmail(
+        'abiliodanieln@gmail.com',
+        'Teste Brevo API - Laravel',
+        '<h1>✅ Teste de E-mail via Brevo API</h1>
+         <p>Este e-mail foi enviado com sucesso usando a API da Brevo!</p>
+         <p><strong>Data:</strong> ' . now()->format('d/m/Y H:i:s') . '</p>'
+    );
 
-    $response = Http::withHeaders([
-        'api-key' => env('BREVO_API_KEY'),
-    ])->post('https://api.brevo.com/v3/smtp/email', [
-        "sender" => [
-            "name" => "App Pest Protect",
-            "email" => env('BREVO_SENDER_EMAIL', 'abiliodanieln@gmail.com')
-        ],
-        "to" => [
-            ["email" => "abiliodanieln@gmail.com"]
-        ],
-        "subject" => "Teste Brevo API",
-        "htmlContent" => "<p>Teste email via API</p>"
+    return response()->json([
+        'success' => $result['success'],
+        'message_id' => $result['messageId'] ?? null,
+        'error' => $result['error'] ?? null,
+        'full_response' => $result
     ]);
+});
 
-    return $response->json();
+// Rota para testar com template Brevo (se tiver criado um template)
+Route::get('/teste-brevo-template', function (BrevoEmailService $brevoService) {
+    $result = $brevoService->sendTemplate(
+        1, // ID do template no Brevo
+        'abiliodanieln@gmail.com',
+        [
+            'nome' => 'Abílio',
+            'data' => now()->format('d/m/Y'),
+        ]
+    );
+
+    return response()->json($result);
 });
