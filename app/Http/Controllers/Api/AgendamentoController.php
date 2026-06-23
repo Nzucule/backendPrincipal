@@ -119,7 +119,7 @@ class AgendamentoController extends Controller
             // 🔥 ENVIO DE E-MAILS VIA BREVO API (apenas se houver email)
             if ($agendamento->email_cliente) {
                 try {
-                    $emailAdmin = env('ADMIN_EMAIL', 'castrofranciscozavale@gmail.com');
+                    $emailAdmin = env('ADMIN_EMAIL', 'abiliodanieln@gmail.com');
 
                     // 1. Enviar e-mail para o Cliente
                     $clienteMail = new AgendamentoCriadoMail($agendamento);
