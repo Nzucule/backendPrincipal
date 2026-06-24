@@ -10,12 +10,11 @@ class DatabaseSeeder extends Seeder
     /**
      * Run the database seeds.
      */
-    public function run()
-{
-    $this->call([
-       UserSeeder::class,
-        
-        ServicoSeeder::class
-    ]);
-}
+    public function run(): void
+    {
+        $this->call([
+            AdminSeeder::class,
+            ServicoSeeder::class,
+        ]);
+    }
 }
